@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+__pycache__/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+content_agent_output/
+*.log
+*.sqlite3
+.DS_Store
+.env

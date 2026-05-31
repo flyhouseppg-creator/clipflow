@@ -18,4 +18,4 @@ COPY . /app
 
 # Esponi il porto standard e usa il cmd di default
 EXPOSE 8000
-CMD ["uvicorn", "content_agent_pro:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "content_agent_pro.py"]

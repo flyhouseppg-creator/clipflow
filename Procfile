@@ -1,1 +1,1 @@
-web: uvicorn content_agent_pro:app --host 0.0.0.0 --port $PORT
+web: python content_agent_pro.py

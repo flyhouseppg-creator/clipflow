@@ -408,10 +408,14 @@ async def download_file(file: str):
 
 def main():
     import argparse
+    default_host = os.environ.get("HOST", "0.0.0.0")
+    default_port = int(os.environ.get("PORT") or 8000)
+
     p = argparse.ArgumentParser()
-    p.add_argument("--host", default=os.environ.get("HOST", "0.0.0.0"))
-    p.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8000)))
+    p.add_argument("--host", default=default_host)
+    p.add_argument("--port", type=int, default=default_port)
     args = p.parse_args()
+
     if args.host in ("127.0.0.1", "localhost"):
         threading.Timer(1.5, lambda: webbrowser.open(f"http://{args.host}:{args.port}")).start()
     logger.info(f"🚀 http://{args.host}:{args.port}")

@@ -145,6 +145,8 @@ def transcribe_words(video_path: Path) -> Optional[List[Dict]]:
         segments, _ = model.transcribe(str(video_path), language="it", word_timestamps=True)
         words = [{"start": w.start, "end": w.end, "text": w.word.strip()} for seg in segments for w in seg.words if w.word.strip()]
         logger.info(f"✅ {len(words)} parole trascritte")
+        if words:
+            logger.info("🔎 Ultime 3 parole transcritte: %s", [(w['text'], w['start'], w['end']) for w in words[-3:]])
         return words
     except Exception as e:
         logger.error(f"⚠️ Whisper fallita: {e}")
@@ -160,6 +162,11 @@ def adjust_words_for_cuts(words, keep_segments, max_sec):
                 ns, ne = w["start"] - seg["start"] + pos, w["end"] - seg["start"] + pos
                 if ns < max_sec: adjusted.append({"start": ns, "end": min(ne, max_sec), "text": w["text"]})
         pos += (seg["end"] - seg["start"])
+    logger.info(f"🔎 adjust_words_for_cuts, parole in input: {len(words)}, parole in output: {len(adjusted)}")
+    if words:
+        logger.info("🔎 Ultime 3 parole input: %s", [(w['text'], w['start'], w['end']) for w in words[-3:]])
+    if adjusted:
+        logger.info("🔎 Ultime 3 parole output: %s", [(w['text'], w['start'], w['end']) for w in adjusted[-3:]])
     return adjusted
 
 def chunk_words(words, max_words=4, max_gap=1.0):
@@ -215,7 +222,7 @@ def generate_ass_file(words, output_path, is_portrait, font: str = "Arial", high
                     for j, w in enumerate(chunk):
                         text = w['text'].replace('{', '\\{').replace('}', '\\}')
                         if j == i:
-                            parts.append(f"{{\\c&H{highlight_color}&}}{text}")
+                            parts.append(f"{{\\c&H{highlight_color}&}}{text}{{\\c&H{text_color}&}}")
                         else:
                             parts.append(text)
                     f.write(f"Dialogue: {format_ass_time(aw['start'])},{format_ass_time(aw['end'])},Default,{' '.join(parts)}\n")

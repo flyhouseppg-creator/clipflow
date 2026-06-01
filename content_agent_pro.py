@@ -32,8 +32,8 @@ def get_whisper():
     global WHISPER_MODEL_INSTANCE
     if WHISPER_MODEL_INSTANCE is None and WHISPER_OK:
         try:
-            WHISPER_MODEL_INSTANCE = WhisperModel("base", device="cpu", compute_type="int8")
-            logger.info("✅ Whisper model caricato (base)")
+            WHISPER_MODEL_INSTANCE = WhisperModel("small", device="cpu", compute_type="int8")
+            logger.info("✅ Whisper model caricato (small)")
         except Exception as e:
             logger.error(f"⚠️ Whisper error: {e}")
     return WHISPER_MODEL_INSTANCE
@@ -94,7 +94,7 @@ def validate_subtitle_font(font: str) -> str:
     return font if font in allowed else "Arial"
 
 def validate_bg_style(style: str) -> str:
-    return style if style in {"none", "black", "white"} else "none"
+    return style if style in {"none", "black", "white", "glow"} else "none"
 
 def get_stream_codecs(path: Path) -> Dict[str, Optional[str]]:
     try:
@@ -179,11 +179,29 @@ def generate_ass_file(words, output_path, is_portrait, font: str = "Arial", high
     highlight_color = clean_hex_color(highlight_color, "FFD700")
     bg_style = validate_bg_style(bg_style)
     back_color = "FF000000"
+    outline_color = "000000"
+    border_style = 1
+    outline = 2
+    shadow = 0
+
     if bg_style == "black":
         back_color = "80000000"
+        border_style = 3
+        outline = 2
+        shadow = 0
     elif bg_style == "white":
         back_color = "80FFFFFF"
-    header = f"[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV\nStyle: Default,{font},{fs},&H00{text_color},&H00{highlight_color},&H00000000,&H{back_color},-1,0,3,15,0,2,10,10,{mv}\n\n[Events]\nFormat: Start, End, Style, Text\n"
+        border_style = 3
+        outline = 2
+        shadow = 0
+    elif bg_style == "glow":
+        back_color = "FF000000"
+        outline_color = highlight_color
+        border_style = 1
+        outline = 8
+        shadow = 10
+
+    header = f"[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV\nStyle: Default,{font},{fs},&H00{text_color},&H00{highlight_color},&H{outline_color},&H{back_color},-1,0,{border_style},{outline},{shadow},2,10,10,{mv}\n\n[Events]\nFormat: Start, End, Style, Text\n"
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(header)
         if any(len(w["text"].split())>2 for w in words):
@@ -222,17 +240,13 @@ def build_video(input_path: Path, audio_path: Optional[Path], output_path: Path,
             "-metadata:s:a:0", "title= ", "-metadata:s:a:0", "handler_name= "
         ]
         source_codecs = get_stream_codecs(input_path)
-        can_copy_segments = source_codecs.get("video") == "h264"
         
         for i, seg in enumerate(keep_segments):
             if total_dur >= max_sec: break
             dur = min(seg["end"] - seg["start"], max_sec - total_dur)
             if dur <= 0.2: continue
             seg_path = tmp_dir / f"seg_{i}.mp4"
-            if can_copy_segments:
-                cmd = ["ffmpeg", "-y", "-ss", str(seg["start"]), "-t", str(dur), "-i", str(input_path)] + clean_meta + ["-c", "copy", str(seg_path)]
-            else:
-                cmd = ["ffmpeg", "-y", "-ss", str(seg["start"]), "-t", str(dur), "-i", str(input_path)] + clean_meta + ["-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-c:a", "aac", str(seg_path)]
+            cmd = ["ffmpeg", "-y", "-ss", str(seg["start"]), "-t", str(dur), "-i", str(input_path)] + clean_meta + ["-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-c:a", "aac", str(seg_path)]
             if not _run_ffmpeg_safe(cmd, 120): raise RuntimeError("Taglio fallito")
             if seg_path.exists(): segment_files.append(seg_path); total_dur += dur
             
@@ -393,7 +407,7 @@ document.querySelectorAll("input[name='p']").forEach(cb=>cb.addEventListener("ch
         const optionsEl = document.querySelector('.options');
         const section = document.createElement('section');
         section.className = 'card';
-        section.innerHTML = `<h2>🎨 Stile Sottotitoli</h2><div class="subtitle-style" style="display:flex;flex-wrap:wrap;gap:0.75rem;margin-top:0.75rem;"><label style="display:flex;flex-direction:column;font-size:0.9rem;"><span style="font-weight:700;margin-bottom:0.35rem;">Font</span><select id="subtitleFont" name="subtitle_font"><option>Arial</option><option>Impact</option><option>Montserrat</option><option>Oswald</option><option>Bebas Neue</option></select></label><label style="display:flex;flex-direction:column;font-size:0.9rem;"><span style="font-weight:700;margin-bottom:0.35rem;">Colore evidenziata</span><input type="color" id="subtitleHighlight" name="subtitle_highlight_color" value="#FFD700"></label><label style="display:flex;flex-direction:column;font-size:0.9rem;"><span style="font-weight:700;margin-bottom:0.35rem;">Colore testo</span><input type="color" id="subtitleTextColor" name="subtitle_text_color" value="#FFFFFF"></label><label style="display:flex;flex-direction:column;font-size:0.9rem;"><span style="font-weight:700;margin-bottom:0.35rem;">Sfondo</span><select id="subtitleBgStyle" name="subtitle_bg_style"><option value="none">Nessuno</option><option value="black">Nero semi-trasparente</option><option value="white">Bianco semi-trasparente</option></select></label></div>`;
+        section.innerHTML = `<h2>🎨 Stile Sottotitoli</h2><div class="subtitle-style" style="display:flex;flex-wrap:wrap;gap:0.75rem;margin-top:0.75rem;"><label style="display:flex;flex-direction:column;font-size:0.9rem;"><span style="font-weight:700;margin-bottom:0.35rem;">Font</span><select id="subtitleFont" name="subtitle_font"><option>Arial</option><option>Impact</option><option>Montserrat</option><option>Oswald</option><option>Bebas Neue</option></select></label><label style="display:flex;flex-direction:column;font-size:0.9rem;"><span style="font-weight:700;margin-bottom:0.35rem;">Colore evidenziata</span><input type="color" id="subtitleHighlight" name="subtitle_highlight_color" value="#FFD700"></label><label style="display:flex;flex-direction:column;font-size:0.9rem;"><span style="font-weight:700;margin-bottom:0.35rem;">Colore testo</span><input type="color" id="subtitleTextColor" name="subtitle_text_color" value="#FFFFFF"></label><label style="display:flex;flex-direction:column;font-size:0.9rem;"><span style="font-weight:700;margin-bottom:0.35rem;">Sfondo</span><select id="subtitleBgStyle" name="subtitle_bg_style"><option value="none">Nessuno</option><option value="black">Nero semi-trasparente</option><option value="white">Bianco semi-trasparente</option><option value="glow">Alone sfocato</option></select></label></div>`;
         if(optionsEl && optionsEl.parentNode) optionsEl.parentNode.insertBefore(section, optionsEl);
     }catch(e){console.warn('subtitle UI insert failed', e)}
 })();

@@ -247,7 +247,7 @@ def build_video(input_path: Path, audio_path: Optional[Path], output_path: Path,
             if dur <= 0.2: continue
             seg_path = tmp_dir / f"seg_{i}.mp4"
             cmd = ["ffmpeg", "-y", "-ss", str(seg["start"]), "-t", str(dur), "-i", str(input_path)] + clean_meta + ["-c:v", "libx264", "-preset", "superfast", "-crf", "23", "-c:a", "aac", str(seg_path)]
-            if not _run_ffmpeg_safe(cmd, 120): raise RuntimeError("Taglio fallito")
+            if not _run_ffmpeg_safe(cmd, 300): raise RuntimeError("Taglio fallito")
             if seg_path.exists(): segment_files.append(seg_path); total_dur += dur
             
         if not segment_files: raise RuntimeError("Nessun segmento valido")

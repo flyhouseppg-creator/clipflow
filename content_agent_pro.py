@@ -154,14 +154,22 @@ def transcribe_words(video_path: Path) -> Optional[List[Dict]]:
 
 def adjust_words_for_cuts(words, keep_segments, max_sec):
     if not words or not keep_segments: return []
-    adjusted, pos = [], 0.0
+    adjusted = []
+    pos = 0.0
     for seg in keep_segments:
         if pos >= max_sec: break
+        seg_start = seg["start"]
+        seg_end = seg["end"]
         for w in words:
-            if w["start"] >= seg["start"] and w["end"] <= seg["end"]:
-                ns, ne = w["start"] - seg["start"] + pos, w["end"] - seg["start"] + pos
-                if ns < max_sec: adjusted.append({"start": ns, "end": min(ne, max_sec), "text": w["text"]})
-        pos += (seg["end"] - seg["start"])
+            # include word if its midpoint falls inside the segment
+            mid = (w["start"] + w["end"]) / 2.0
+            if mid >= seg_start and mid <= seg_end:
+                # clamp the word to segment bounds, then convert to cumulative timeline
+                ns = max(w["start"], seg_start) - seg_start + pos
+                ne = min(w["end"], seg_end) - seg_start + pos
+                if ns < max_sec:
+                    adjusted.append({"start": ns, "end": min(ne, max_sec), "text": w["text"]})
+        pos += (seg_end - seg_start)
     logger.info(f"🔎 adjust_words_for_cuts, parole in input: {len(words)}, parole in output: {len(adjusted)}")
     if words:
         logger.info("🔎 Ultime 3 parole input: %s", [(w['text'], w['start'], w['end']) for w in words[-3:]])

@@ -171,10 +171,11 @@ def adjust_words_for_cuts(words, keep_segments, max_sec):
                     adjusted.append({"start": ns, "end": min(ne, max_sec), "text": w["text"]})
         pos += (seg_end - seg_start)
     logger.info(f"🔎 adjust_words_for_cuts, parole in input: {len(words)}, parole in output: {len(adjusted)}")
-    if words:
-        logger.info("🔎 Ultime 3 parole input: %s", [(w['text'], w['start'], w['end']) for w in words[-3:]])
-    if adjusted:
-        logger.info("🔎 Ultime 3 parole output: %s", [(w['text'], w['start'], w['end']) for w in adjusted[-3:]])
+    try:
+        logger.info("🔎 Parole input (testo in ordine): %s", [w['text'] for w in words])
+        logger.info("🔎 Parole output (testo in ordine): %s", [w['text'] for w in adjusted])
+    except Exception as e:
+        logger.warning(f"⚠️ Logging parole fallito: {e}")
     return adjusted
 
 def chunk_words(words, max_words=4, max_gap=1.0):

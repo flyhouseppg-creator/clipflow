@@ -154,96 +154,80 @@ def transcribe_words(video_path: Path) -> Optional[List[Dict]]:
 
 def adjust_words_for_cuts(words, keep_segments, max_sec):
     if not words or not keep_segments: return []
-    adjusted = []
-    pos = 0.0
-    
-    # dump keep_segments for diagnostics
+
+    # posizione di inizio di ogni segmento nella timeline compressa
+    seg_pos, pos = [], 0.0
+    for seg in keep_segments:
+        seg_pos.append(pos)
+        pos += seg["end"] - seg["start"]
+
     try:
         logger.info("🔎 keep_segments: %s", [(s['start'], s['end']) for s in keep_segments])
     except Exception:
         pass
-    
-    # FIRST PASS: assign words whose midpoint falls inside a segment
-    for seg in keep_segments:
-        if pos >= max_sec: break
-        seg_start = seg["start"]
-        seg_end = seg["end"]
-        
-        for w in words:
-            mid = (w["start"] + w["end"]) / 2.0
-            if mid >= seg_start and mid <= seg_end:
-                ns = max(w["start"], seg_start) - seg_start + pos
-                ne = min(w["end"], seg_end) - seg_start + pos
-                if ns < max_sec:
-                    adjusted.append({"start": ns, "end": min(ne, max_sec), "text": w["text"], "orig_start": w["start"], "orig_end": w["end"], "mid": mid})
-        
-        pos += (seg_end - seg_start)
-    
-    # SECOND PASS: assign words that fell in gaps to nearest segment
-    included_texts = {(w['text'], w['orig_start'], w['orig_end']) for w in adjusted}
-    unassigned = [w for w in words if (w['text'], w['start'], w['end']) not in included_texts]
-    
-    for w in unassigned:
-        mid = (w["start"] + w["end"]) / 2.0
-        
-        # find nearest segment
-        best_seg = None
-        best_dist = None
-        best_idx = None
-        for idx, s in enumerate(keep_segments):
-            if mid < s['start']:
-                dist = s['start'] - mid
-            elif mid > s['end']:
-                dist = mid - s['end']
-            else:
-                dist = 0
-            if best_dist is None or dist < best_dist:
-                best_seg = s
-                best_dist = dist
-                best_idx = idx
-        
-        # only assign if it's actually in a gap (dist > 0)
-        if best_seg is not None and best_dist > 0.0:
-            # calculate pos for best_seg
-            pos_best = sum(keep_segments[i]['end'] - keep_segments[i]['start'] for i in range(best_idx))
-            
-            ns = max(w["start"], best_seg["start"]) - best_seg["start"] + pos_best
-            ne = min(w["end"], best_seg["end"]) - best_seg["start"] + pos_best
-            if ns < max_sec:
-                adjusted.append({"start": ns, "end": min(ne, max_sec), "text": w["text"]})
-    
-    logger.info(f"🔎 adjust_words_for_cuts, parole in input: {len(words)}, parole in output: {len(adjusted)}")
-    try:
-        logger.info("🔎 Parole input (testo in ordine): %s", [w['text'] for w in words])
-        logger.info("🔎 Parole output (testo in ordine): %s", [w['text'] for w in adjusted])
-    except Exception as e:
-        logger.warning(f"⚠️ Logging parole fallito: {e}")
 
-    # diagnostic: list words that were not included in any segment
-    try:
-        final_texts = {w['text'] for w in adjusted}
-        discarded = [w for w in words if w['text'] not in final_texts]
-        if discarded:
-            nearest_info = []
-            for w in discarded:
-                mid = (w['start'] + w['end']) / 2.0
-                best = None
-                best_dist = None
-                for s in keep_segments:
-                    if mid < s['start']:
-                        dist = s['start'] - mid
-                    elif mid > s['end']:
-                        dist = mid - s['end']
-                    else:
-                        dist = 0.0
-                    if best is None or dist < best_dist:
-                        best = s; best_dist = dist
-                nearest_info.append((w['text'], w['start'], w['end'], mid, best['start'] if best else None, best['end'] if best else None, best_dist))
-            for info in nearest_info:
-                logger.info("🔎 Parola scartata: text=%s start=%.3f end=%.3f mid=%.3f nearest_seg=(%.3f,%.3f) dist=%.3f", info[0], info[1], info[2], info[3], info[4], info[5], info[6])
-    except Exception:
-        pass
-    
+    adjusted = []
+    assigned = [False] * len(words)
+
+    # PRIMA PASSATA: il punto medio cade dentro un segmento -> remap lineare
+    for si, seg in enumerate(keep_segments):
+        base, s0, s1 = seg_pos[si], seg["start"], seg["end"]
+        for wi, w in enumerate(words):
+            if assigned[wi]:
+                continue
+            mid = (w["start"] + w["end"]) / 2.0
+            if s0 <= mid <= s1:
+                ns = max(w["start"], s0) - s0 + base
+                ne = min(w["end"], s1) - s0 + base
+                if ns < max_sec:
+                    adjusted.append({"start": ns, "end": min(ne, max_sec), "text": w["text"]})
+                    assigned[wi] = True
+
+    # SECONDA PASSATA: parole rimaste nei buchi -> al segmento più vicino,
+    # ancorate al bordo del segmento mantenendo la loro durata originale
+    for wi, w in enumerate(words):
+        if assigned[wi]:
+            continue
+        mid = (w["start"] + w["end"]) / 2.0
+        dur = max(w["end"] - w["start"], 0.0)
+
+        best_idx, best_dist, before = None, None, True
+        for si, s in enumerate(keep_segments):
+            if mid < s["start"]:
+                dist, side_before = s["start"] - mid, True
+            elif mid > s["end"]:
+                dist, side_before = mid - s["end"], False
+            else:
+                dist, side_before = 0.0, True
+            if best_dist is None or dist < best_dist:
+                best_idx, best_dist, before = si, dist, side_before
+
+        if best_idx is None:
+            continue
+
+        base = seg_pos[best_idx]
+        seg = keep_segments[best_idx]
+        seg_dur = seg["end"] - seg["start"]
+        if before:                      # buco prima del segmento -> attacca all'inizio
+            ne = base
+            ns = max(ne - dur, 0.0)
+        else:                           # buco dopo il segmento -> attacca alla fine
+            ns = base + seg_dur
+            ne = ns + dur
+
+        if ns < max_sec:
+            adjusted.append({"start": ns, "end": min(ne, max_sec), "text": w["text"]})
+            assigned[wi] = True
+
+    # ordine cronologico per chunking / karaoke
+    adjusted.sort(key=lambda x: (x["start"], x["end"]))
+
+    discarded = [words[i]["text"] for i in range(len(words)) if not assigned[i]]
+    logger.info("🔎 adjust_words_for_cuts: input=%d output=%d scartate=%d",
+                len(words), len(adjusted), len(discarded))
+    if discarded:
+        logger.info("🔎 Parole scartate (oltre max_sec): %s", discarded)
+
     return adjusted
 
 def chunk_words(words, max_words=4, max_gap=1.0):

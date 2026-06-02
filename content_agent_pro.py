@@ -182,8 +182,7 @@ def adjust_words_for_cuts(words, keep_segments, max_sec):
                 ns = max(w["start"], s0) - s0 + base
                 ne = min(w["end"], s1) - s0 + base
                 if ns < max_sec:
-                    adjusted.append({"start": ns, "end": min(ne, max_sec),
-                                     "text": w["text"], "recovered": False})
+                    adjusted.append({"start": ns, "end": min(ne, max_sec), "text": w["text"]})
                     assigned[wi] = True
 
     # SECONDA PASSATA: parole rimaste nei buchi -> start ancorato al bordo
@@ -213,22 +212,21 @@ def adjust_words_for_cuts(words, keep_segments, max_sec):
         ns = base if before else base + seg_dur   # bordo: inizio o fine del segmento
         ne = ns + max(dur, MIN_DUR)
         if ns < max_sec:
-            adjusted.append({"start": ns, "end": min(ne, max_sec),
-                             "text": w["text"], "recovered": True})
+            adjusted.append({"start": ns, "end": min(ne, max_sec), "text": w["text"]})
             assigned[wi] = True
 
     # ordine cronologico per chunking / karaoke
     adjusted.sort(key=lambda x: (x["start"], x["end"]))
 
     # SWEEP ANTI-OVERLAP: nessuna parola condivide/sovrappone l'intervallo di un'altra.
-    # Le parole in conflitto vengono spinte in avanti; le recuperate mantengono MIN_DUR.
+    # Le parole in conflitto vengono spinte in avanti e mantengono almeno MIN_DUR,
+    # così nessuna collassa (e <= s) e nessuna parola viene persa.
     result, prev_end = [], 0.0
     for it in adjusted:
         s, e = it["start"], it["end"]
         if s < prev_end:            # si sovrappone alla precedente -> in coda, senza coincidere
             s = prev_end
-        if it["recovered"]:         # durata minima visibile solo per le recuperate
-            e = max(e, s + MIN_DUR)
+        e = max(e, s + MIN_DUR)     # durata minima visibile: nessuna parola collassa (e <= s)
         e = min(e, max_sec)
         if s >= max_sec or e <= s:  # niente spazio utile rimasto
             continue

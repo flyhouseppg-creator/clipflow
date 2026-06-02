@@ -251,6 +251,12 @@ def generate_ass_file(words, output_path, is_portrait, font: str = "Arial", high
     text_color = clean_hex_color(text_color, "FFFFFF")
     highlight_color = clean_hex_color(highlight_color, "FFD700")
     bg_style = validate_bg_style(bg_style)
+    # ASS usa l'ordine BGR (&HBBGGRR&); il pannello/CSS usa RGB (RRGGBB): converti
+    # cosi' i colori nel video coincidono esattamente con l'anteprima.
+    text_ass = text_color[4:6] + text_color[2:4] + text_color[0:2]
+    hl_ass = highlight_color[4:6] + highlight_color[2:4] + highlight_color[0:2]
+    # Stile base condiviso: la parola evidenziata si distingue SOLO per il colore,
+    # mai per dimensione (nessun override \fs / \fscx).
     back_color = "FF000000"
     outline_color = "000000"
     border_style = 1
@@ -268,19 +274,28 @@ def generate_ass_file(words, output_path, is_portrait, font: str = "Arial", high
         outline = 2
         shadow = 0
     elif bg_style == "glow":
+        # Le parole base hanno solo un'ombra scura (come .bg-glow .sub-base);
+        # il bagliore colorato e' applicato inline SOLO alla parola evidenziata.
         back_color = "FF000000"
-        outline_color = highlight_color
+        outline_color = "000000"
         border_style = 1
-        outline = 8
-        shadow = 10
+        outline = 2
+        shadow = 1
 
-    header = f"[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV\nStyle: Default,{font},{fs},&H00{text_color},&H00{highlight_color},&H{outline_color},&H{back_color},-1,0,{border_style},{outline},{shadow},2,10,10,{mv}\n\n[Events]\nFormat: Start, End, Style, Text\n"
+    header = f"[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV\nStyle: Default,{font},{fs},&H00{text_ass},&H00{hl_ass},&H00{outline_color},&H{back_color},-1,0,{border_style},{outline},{shadow},2,10,10,{mv}\n\n[Events]\nFormat: Start, End, Style, Text\n"
+    # Override inline per la parola evidenziata: SOLO colore (e bagliore colorato
+    # se glow), poi \r per ripristinare lo stile Default sulle parole successive.
+    if bg_style == "glow":
+        hl_open = f"{{\\c&H00{hl_ass}&\\3c&H00{hl_ass}&\\bord3\\blur6\\shad0}}"
+    else:
+        hl_open = f"{{\\c&H00{hl_ass}&}}"
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(header)
         if any(len(w["text"].split())>2 for w in words):
             for w in words:
                 text = w['text'].replace('{', '\\{').replace('}', '\\}')
-                f.write(f"Dialogue: {format_ass_time(w['start'])},{format_ass_time(w['end'])},Default,{{\\c&H{highlight_color}&}}{text}\n")
+                # Modalita' frase: nessuna parola "corrente" -> colore testo normale.
+                f.write(f"Dialogue: {format_ass_time(w['start'])},{format_ass_time(w['end'])},Default,{text}\n")
         else:
             for chunk in chunk_words(words):
                 for i, aw in enumerate(chunk):
@@ -288,7 +303,7 @@ def generate_ass_file(words, output_path, is_portrait, font: str = "Arial", high
                     for j, w in enumerate(chunk):
                         text = w['text'].replace('{', '\\{').replace('}', '\\}')
                         if j == i:
-                            parts.append(f"{{\\c&H{highlight_color}&}}{text}{{\\c&H{text_color}&}}")
+                            parts.append(f"{hl_open}{text}{{\\r}}")
                         else:
                             parts.append(text)
                     f.write(f"Dialogue: {format_ass_time(aw['start'])},{format_ass_time(aw['end'])},Default,{' '.join(parts)}\n")

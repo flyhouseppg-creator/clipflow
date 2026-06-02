@@ -166,6 +166,8 @@ def adjust_words_for_cuts(words, keep_segments, max_sec):
     except Exception:
         pass
 
+    MIN_DUR = 0.3  # durata minima visibile per le parole recuperate (anti-lampeggio)
+
     adjusted = []
     assigned = [False] * len(words)
 
@@ -180,11 +182,12 @@ def adjust_words_for_cuts(words, keep_segments, max_sec):
                 ns = max(w["start"], s0) - s0 + base
                 ne = min(w["end"], s1) - s0 + base
                 if ns < max_sec:
-                    adjusted.append({"start": ns, "end": min(ne, max_sec), "text": w["text"]})
+                    adjusted.append({"start": ns, "end": min(ne, max_sec),
+                                     "text": w["text"], "recovered": False})
                     assigned[wi] = True
 
-    # SECONDA PASSATA: parole rimaste nei buchi -> al segmento più vicino,
-    # ancorate al bordo del segmento mantenendo la loro durata originale
+    # SECONDA PASSATA: parole rimaste nei buchi -> start ancorato al bordo
+    # del segmento più vicino (inizio se il buco è prima, fine se è dopo).
     for wi, w in enumerate(words):
         if assigned[wi]:
             continue
@@ -206,29 +209,39 @@ def adjust_words_for_cuts(words, keep_segments, max_sec):
             continue
 
         base = seg_pos[best_idx]
-        seg = keep_segments[best_idx]
-        seg_dur = seg["end"] - seg["start"]
-        if before:                      # buco prima del segmento -> attacca all'inizio
-            ne = base
-            ns = max(ne - dur, 0.0)
-        else:                           # buco dopo il segmento -> attacca alla fine
-            ns = base + seg_dur
-            ne = ns + dur
-
+        seg_dur = keep_segments[best_idx]["end"] - keep_segments[best_idx]["start"]
+        ns = base if before else base + seg_dur   # bordo: inizio o fine del segmento
+        ne = ns + max(dur, MIN_DUR)
         if ns < max_sec:
-            adjusted.append({"start": ns, "end": min(ne, max_sec), "text": w["text"]})
+            adjusted.append({"start": ns, "end": min(ne, max_sec),
+                             "text": w["text"], "recovered": True})
             assigned[wi] = True
 
     # ordine cronologico per chunking / karaoke
     adjusted.sort(key=lambda x: (x["start"], x["end"]))
 
+    # SWEEP ANTI-OVERLAP: nessuna parola condivide/sovrappone l'intervallo di un'altra.
+    # Le parole in conflitto vengono spinte in avanti; le recuperate mantengono MIN_DUR.
+    result, prev_end = [], 0.0
+    for it in adjusted:
+        s, e = it["start"], it["end"]
+        if s < prev_end:            # si sovrappone alla precedente -> in coda, senza coincidere
+            s = prev_end
+        if it["recovered"]:         # durata minima visibile solo per le recuperate
+            e = max(e, s + MIN_DUR)
+        e = min(e, max_sec)
+        if s >= max_sec or e <= s:  # niente spazio utile rimasto
+            continue
+        result.append({"start": s, "end": e, "text": it["text"]})
+        prev_end = e
+
     discarded = [words[i]["text"] for i in range(len(words)) if not assigned[i]]
     logger.info("🔎 adjust_words_for_cuts: input=%d output=%d scartate=%d",
-                len(words), len(adjusted), len(discarded))
+                len(words), len(result), len(discarded))
     if discarded:
         logger.info("🔎 Parole scartate (oltre max_sec): %s", discarded)
 
-    return adjusted
+    return result
 
 def chunk_words(words, max_words=4, max_gap=1.0):
     if not words: return []

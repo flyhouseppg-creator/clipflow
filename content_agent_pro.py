@@ -218,20 +218,15 @@ def adjust_words_for_cuts(words, keep_segments, max_sec):
     # ordine cronologico per chunking / karaoke
     adjusted.sort(key=lambda x: (x["start"], x["end"]))
 
-    # SWEEP ANTI-OVERLAP: nessuna parola condivide/sovrappone l'intervallo di un'altra.
-    # Le parole in conflitto vengono spinte in avanti e mantengono almeno MIN_DUR,
-    # così nessuna collassa (e <= s) e nessuna parola viene persa.
-    result, prev_end = [], 0.0
+    # VISIBILITÀ MINIMA SENZA DRIFT: lo start di ogni parola resta al suo tempo
+    # reale (niente spinta in avanti), così l'evidenziazione non accumula ritardo.
+    # La durata minima si ottiene estendendo la FINE: può creare un piccolo overlap
+    # con la parola seguente (preferibile al lag dell'evidenziazione).
+    result = []
     for it in adjusted:
-        s, e = it["start"], it["end"]
-        if s < prev_end:            # si sovrappone alla precedente -> in coda, senza coincidere
-            s = prev_end
-        e = max(e, s + MIN_DUR)     # durata minima visibile: nessuna parola collassa (e <= s)
-        e = min(e, max_sec)
-        if s >= max_sec or e <= s:  # niente spazio utile rimasto
-            continue
+        s = it["start"]
+        e = min(max(it["end"], s + MIN_DUR), max_sec)   # >= MIN_DUR e <= max_sec
         result.append({"start": s, "end": e, "text": it["text"]})
-        prev_end = e
 
     discarded = [words[i]["text"] for i in range(len(words)) if not assigned[i]]
     logger.info("🔎 adjust_words_for_cuts: input=%d output=%d scartate=%d",

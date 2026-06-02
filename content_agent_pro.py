@@ -218,14 +218,20 @@ def adjust_words_for_cuts(words, keep_segments, max_sec):
     # ordine cronologico per chunking / karaoke
     adjusted.sort(key=lambda x: (x["start"], x["end"]))
 
-    # VISIBILITÀ MINIMA SENZA DRIFT: lo start di ogni parola resta al suo tempo
-    # reale (niente spinta in avanti), così l'evidenziazione non accumula ritardo.
-    # La durata minima si ottiene estendendo la FINE: può creare un piccolo overlap
-    # con la parola seguente (preferibile al lag dell'evidenziazione).
+    # CLAMP SENZA DRIFT: lo start resta al tempo reale (niente latenza) e la fine
+    # viene tagliata all'inizio della parola successiva -> una parola finisce sempre
+    # appena prima che parta la prossima: niente overlap, niente doppioni, niente lag.
+    MIN_VIS = 0.05  # durata di sicurezza per il raro clamp degenere (start coincidenti)
     result = []
-    for it in adjusted:
+    n = len(adjusted)
+    for i, it in enumerate(adjusted):
         s = it["start"]
-        e = min(max(it["end"], s + MIN_DUR), max_sec)   # >= MIN_DUR e <= max_sec
+        e = it["end"]
+        if i + 1 < n:
+            e = min(e, adjusted[i + 1]["start"])   # taglia all'inizio della successiva
+        e = min(e, max_sec)
+        if e <= s:                                 # clamp degenere -> durata minima
+            e = min(s + MIN_VIS, max_sec)
         result.append({"start": s, "end": e, "text": it["text"]})
 
     discarded = [words[i]["text"] for i in range(len(words)) if not assigned[i]]

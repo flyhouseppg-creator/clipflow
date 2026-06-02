@@ -145,8 +145,6 @@ def transcribe_words(video_path: Path) -> Optional[List[Dict]]:
         segments, _ = model.transcribe(str(video_path), language="it", word_timestamps=True)
         words = [{"start": w.start, "end": w.end, "text": w.word.strip()} for seg in segments for w in seg.words if w.word.strip()]
         logger.info(f"✅ {len(words)} parole trascritte")
-        if words:
-            logger.info("🔎 Ultime 3 parole transcritte: %s", [(w['text'], w['start'], w['end']) for w in words[-3:]])
         return words
     except Exception as e:
         logger.error(f"⚠️ Whisper fallita: {e}")
@@ -160,11 +158,6 @@ def adjust_words_for_cuts(words, keep_segments, max_sec):
     for seg in keep_segments:
         seg_pos.append(pos)
         pos += seg["end"] - seg["start"]
-
-    try:
-        logger.info("🔎 keep_segments: %s", [(s['start'], s['end']) for s in keep_segments])
-    except Exception:
-        pass
 
     MIN_DUR = 0.3  # durata minima visibile per le parole recuperate (anti-lampeggio)
 
@@ -235,10 +228,10 @@ def adjust_words_for_cuts(words, keep_segments, max_sec):
         result.append({"start": s, "end": e, "text": it["text"]})
 
     discarded = [words[i]["text"] for i in range(len(words)) if not assigned[i]]
-    logger.info("🔎 adjust_words_for_cuts: input=%d output=%d scartate=%d",
-                len(words), len(result), len(discarded))
+    logger.info("✅ Sottotitoli sincronizzati: %d parole (%d oltre il limite)",
+                len(result), len(discarded))
     if discarded:
-        logger.info("🔎 Parole scartate (oltre max_sec): %s", discarded)
+        logger.warning("⚠️ Parole oltre max_sec, non sottotitolate: %s", discarded)
 
     return result
 

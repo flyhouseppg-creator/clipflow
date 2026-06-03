@@ -278,32 +278,38 @@ def generate_ass_file(words, output_path, is_portrait, font: str = "Arial", high
     hl_ass = highlight_color[4:6] + highlight_color[2:4] + highlight_color[0:2]
     # Stile base condiviso: la parola evidenziata si distingue SOLO per il colore,
     # mai per dimensione (nessun override \fs / \fscx).
-    back_color = "FF000000"
-    outline_color = "000000"
+    # Colori ASS completi a 8 cifre AABBGGRR (alpha: 00 = opaco, FF = trasparente).
+    # IMPORTANTE: con BorderStyle=3 (box opaco) libass riempie il box con OutlineColour,
+    # NON con BackColour (che colora solo l'ombra). Quindi per gli sfondi box il colore
+    # va in outline_ass. "none"/"glow" usano BorderStyle=1 e restano identici a prima.
+    outline_ass = "00000000"  # contorno testo nero opaco (none/glow)
+    back_ass = "FF000000"     # ombra trasparente (spenta)
     border_style = 1
     outline = 2
     shadow = 0
 
     if bg_style == "black":
-        back_color = "80000000"
+        # Box nero semi-trasparente: alpha 80 = opacita' 0.5 (come .bg-black rgba(0,0,0,.5)).
+        outline_ass = "80000000"
         border_style = 3
         outline = 2
         shadow = 0
     elif bg_style == "white":
-        back_color = "80FFFFFF"
+        # Box bianco semi-trasparente: alpha 73 = opacita' ~0.55 (come .bg-white rgba(255,255,255,.55)).
+        outline_ass = "73FFFFFF"
         border_style = 3
         outline = 2
         shadow = 0
     elif bg_style == "glow":
         # Le parole base hanno solo un'ombra scura (come .bg-glow .sub-base);
         # il bagliore colorato e' applicato inline SOLO alla parola evidenziata.
-        back_color = "FF000000"
-        outline_color = "000000"
+        outline_ass = "00000000"
+        back_ass = "FF000000"
         border_style = 1
         outline = 2
         shadow = 1
 
-    header = f"[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV\nStyle: Default,{font},{fs},&H00{text_ass},&H00{hl_ass},&H00{outline_color},&H{back_color},-1,0,{border_style},{outline},{shadow},2,10,10,{mv}\n\n[Events]\nFormat: Start, End, Style, Text\n"
+    header = f"[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV\nStyle: Default,{font},{fs},&H00{text_ass},&H00{hl_ass},&H{outline_ass},&H{back_ass},-1,0,{border_style},{outline},{shadow},2,10,10,{mv}\n\n[Events]\nFormat: Start, End, Style, Text\n"
     # Override inline per la parola evidenziata: SOLO colore (e bagliore colorato
     # se glow), poi \r per ripristinare lo stile Default sulle parole successive.
     if bg_style == "glow":

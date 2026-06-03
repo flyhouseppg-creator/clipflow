@@ -532,8 +532,8 @@ input[type=file]{display:none}
 #thumbText strong{font-weight:500;color:var(--text);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #thumbText .thumb-action{color:var(--accent);font-size:12px}
 .check{width:26px;height:26px;border-radius:50%;background:var(--success);display:grid;place-items:center;color:#04140a;font-size:14px;flex:none}
-.video-preview{width:100%;border-radius:var(--r);display:block;max-height:280px;object-fit:cover;background:#000}
-.preview-wrap{position:relative;margin-top:12px;display:none;line-height:0}
+.video-preview{display:block;width:100%;height:100%;object-fit:contain;background:#000}
+.preview-wrap{position:relative;margin:12px auto 0;display:none;line-height:0;max-width:100%;border-radius:var(--r);overflow:hidden;background:#000}
 .sub-pos-overlay{position:absolute;inset:0;border-radius:var(--r);overflow:hidden;pointer-events:none}
 .sub-pos-hint{position:absolute;top:6px;left:8px;font-size:10px;line-height:1.2;text-transform:uppercase;letter-spacing:.05em;color:rgba(255,255,255,.75);background:rgba(0,0,0,.45);padding:3px 7px;border-radius:var(--r-pill);pointer-events:none}
 .sub-pos-marker{position:absolute;left:0;right:0;height:22px;transform:translateY(-50%);display:flex;align-items:center;cursor:pointer;pointer-events:auto}
@@ -635,7 +635,10 @@ const thumbText=document.getElementById("thumbText");
 function setGenFill(p){const f=document.getElementById("genFill");if(f)f.style.width=Math.max(0,Math.min(100,p))+"%";}
 function setGenState(state){const b=document.getElementById("genBtn"),t=document.getElementById("genText");if(!b)return;b.classList.remove("processing","done");if(state==="processing"){b.classList.add("processing");if(t)t.textContent="In preparazione";setGenFill(0);}else if(state==="done"){b.classList.add("done");if(t)t.textContent="Fatto";setGenFill(100);}else{if(t)t.textContent="Genera clip";setGenFill(0);}}
 
-function handleDatasetVideo(file){if(!file)return;selVideo=file;const size=(file.size/1024/1024).toFixed(1)+" MB";thumbText.innerHTML=`<strong>${file.name}</strong><span>${size}</span><span class='thumb-action'>Tocca per espandere</span>`;videoThumb.classList.add("has-file");document.getElementById("dropVideoTxt").innerHTML="Thumbnail pronta. Premi per visualizzare.";previewVideo.src=URL.createObjectURL(file);previewVideo.style.display="block";document.getElementById("previewWrap").style.display="none";checkReady();}
+function fitPreview(){const v=previewVideo,wrap=document.getElementById("previewWrap");if(!v.videoWidth||!v.videoHeight||wrap.style.display==="none")return;const parent=wrap.parentElement,cs=getComputedStyle(parent);const padX=parseFloat(cs.paddingLeft)+parseFloat(cs.paddingRight);const availW=Math.max(0,parent.clientWidth-padX);const maxH=Math.min(window.innerHeight*0.7,460);const ar=v.videoWidth/v.videoHeight;let dispW=availW,dispH=availW/ar;if(dispH>maxH){dispH=maxH;dispW=maxH*ar;}wrap.style.width=dispW+"px";wrap.style.height=dispH+"px";}
+function handleDatasetVideo(file){if(!file)return;selVideo=file;const size=(file.size/1024/1024).toFixed(1)+" MB";thumbText.innerHTML=`<strong>${file.name}</strong><span>${size}</span>`;videoThumb.classList.add("has-file");document.getElementById("dropVideoTxt").innerHTML="Anteprima del video";previewVideo.src=URL.createObjectURL(file);previewVideo.style.display="block";document.getElementById("previewWrap").style.display="block";checkReady();}
+previewVideo.addEventListener("loadedmetadata",fitPreview);
+window.addEventListener("resize",fitPreview);
 
 document.getElementById("dropVideo").addEventListener("click",()=>document.getElementById("fileVideo").click());
 document.getElementById("dropVideo").addEventListener("dragover",e=>{e.preventDefault();e.currentTarget.classList.add("drag");});
@@ -643,7 +646,7 @@ document.getElementById("dropVideo").addEventListener("dragleave",e=>{e.currentT
 document.getElementById("dropVideo").addEventListener("drop",e=>{e.preventDefault();e.currentTarget.classList.remove("drag");if(e.dataTransfer.files[0])handleDatasetVideo(e.dataTransfer.files[0]);});
 document.getElementById("fileVideo").addEventListener("change",e=>{if(e.target.files[0])handleDatasetVideo(e.target.files[0]);});
 
-document.getElementById("videoThumb").addEventListener("click",()=>{if(!selVideo){document.getElementById("fileVideo").click();return;}const w=document.getElementById("previewWrap");w.style.display=w.style.display==="block"?"none":"block";});
+document.getElementById("videoThumb").addEventListener("click",()=>{if(!selVideo){document.getElementById("fileVideo").click();return;}const w=document.getElementById("previewWrap");w.style.display=w.style.display==="block"?"none":"block";if(w.style.display==="block")fitPreview();});
 let subPosition="bottom";
 document.querySelectorAll(".sub-pos-marker").forEach(m=>m.addEventListener("click",e=>{e.stopPropagation();subPosition=m.dataset.pos;document.querySelectorAll(".sub-pos-marker").forEach(x=>x.classList.toggle("active",x===m));}));
 

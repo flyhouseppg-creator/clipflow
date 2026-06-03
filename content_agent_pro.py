@@ -309,7 +309,14 @@ def generate_ass_file(words, output_path, is_portrait, font: str = "Arial", high
         outline = 2
         shadow = 1
 
-    header = f"[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV\nStyle: Default,{font},{fs},&H00{text_ass},&H00{hl_ass},&H{outline_ass},&H{back_ass},-1,0,{border_style},{outline},{shadow},2,10,10,{mv}\n\n[Events]\nFormat: Start, End, Style, Text\n"
+    # Modalita' box: lo sfondo va disegnato su due livelli per evitare i box
+    # spezzati per-parola del karaoke (vedi emissione sotto). Serve uno stile
+    # "Txt" senza box (solo testo) per il livello superiore.
+    is_box = bg_style in ("black", "white")
+    style_default = f"Style: Default,{font},{fs},&H00{text_ass},&H00{hl_ass},&H{outline_ass},&H{back_ass},-1,0,{border_style},{outline},{shadow},2,10,10,{mv}"
+    style_txt = f"Style: Txt,{font},{fs},&H00{text_ass},&H00{hl_ass},&H00000000,&HFF000000,-1,0,1,0,0,2,10,10,{mv}"
+    styles_block = style_default + (f"\n{style_txt}" if is_box else "")
+    header = f"[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV\n{styles_block}\n\n[Events]\nFormat: Start, End, Style, Text\n"
     # Override inline per la parola evidenziata: SOLO colore (e bagliore colorato
     # se glow), poi \r per ripristinare lo stile Default sulle parole successive.
     if bg_style == "glow":
@@ -333,7 +340,16 @@ def generate_ass_file(words, output_path, is_portrait, font: str = "Arial", high
                             parts.append(f"{hl_open}{text}{{\\r}}")
                         else:
                             parts.append(text)
-                    f.write(f"Dialogue: {format_ass_time(aw['start'])},{format_ass_time(aw['end'])},Default,{' '.join(parts)}\n")
+                    start, end = format_ass_time(aw['start']), format_ass_time(aw['end'])
+                    if is_box:
+                        # Livello box continuo: frase intera come SINGOLO run (nessun
+                        # cambio colore -> un solo box), testo reso invisibile (\1a&HFF&).
+                        plain = ' '.join(w['text'].replace('{', '\\{').replace('}', '\\}') for w in chunk)
+                        f.write(f"Dialogue: {start},{end},Default,{{\\1a&HFF&}}{plain}\n")
+                        # Livello testo karaoke sopra, senza box (stile Txt). Stesso timing.
+                        f.write(f"Dialogue: {start},{end},Txt,{' '.join(parts)}\n")
+                    else:
+                        f.write(f"Dialogue: {start},{end},Default,{' '.join(parts)}\n")
 
 def format_ass_time(sec):
     h,m,s = int(sec//3600), int((sec%3600)//60), int(sec%60)

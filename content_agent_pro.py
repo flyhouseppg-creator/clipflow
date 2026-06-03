@@ -111,6 +111,11 @@ SUBTITLE_POSITION_FRAC_FROM_TOP = {
 def validate_subtitle_position(pos: str) -> str:
     return pos if pos in SUBTITLE_POSITION_FRAC_FROM_TOP else "bottom"
 
+# Larghezza media di un glifo come frazione della dimensione font, per stimare
+# l'ingombro del testo (serve a dimensionare il box \p aderente, senza metriche
+# reali da libass). Valori prudenti/leggermente alti per non sotto-stimare.
+_FONT_WIDTH_FACTOR = {"Arial": 0.50, "Impact": 0.46, "Montserrat": 0.55, "Oswald": 0.48, "Bebas Neue": 0.44}
+
 def get_stream_codecs(path: Path) -> Dict[str, Optional[str]]:
     try:
         r = subprocess.run(["ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", str(path)], capture_output=True, text=True, timeout=30)
@@ -342,17 +347,45 @@ def generate_ass_file(words, output_path, is_portrait, font: str = "Arial", high
                             parts.append(text)
                     start, end = format_ass_time(aw['start']), format_ass_time(aw['end'])
                     if is_box:
-                        # \pos identico sui due livelli: li ancora alla stessa posizione
-                        # assoluta esentandoli dal collision detection di libass (che
-                        # altrimenti li separa). 540 = centro X (PlayResX 1080); 1920-mv
-                        # = stesso punto in basso definito dal MarginV scelto, con \an2.
-                        box_pos = f"{{\\an2\\pos(540,{1920 - mv})}}"
-                        # Livello box continuo: frase intera come SINGOLO run (nessun
-                        # cambio colore -> un solo box), testo reso invisibile (\1a&HFF&).
-                        plain = ' '.join(w['text'].replace('{', '\\{').replace('}', '\\}') for w in chunk)
-                        f.write(f"Dialogue: {start},{end},Default,{box_pos}{{\\1a&HFF&}}{plain}\n")
-                        # Livello testo karaoke sopra, senza box (stile Txt). Stesso timing e \pos.
-                        f.write(f"Dialogue: {start},{end},Txt,{box_pos}{' '.join(parts)}\n")
+                        # Sfondo box come UNICO rettangolo vettoriale (\p): un solo bitmap,
+                        # quindi niente doppia semi-trasparenza tra le righe (no seam).
+                        # Stimo interruzioni di riga e larghezza per dimensionarlo aderente.
+                        cw = fs * _FONT_WIDTH_FACTOR.get(font, 0.56)
+                        usable = 1000
+                        lines, cur, cur_w = [], [], 0.0
+                        for idx, w in enumerate(chunk):
+                            ww = len(w['text']) * cw
+                            add = ww + (cw if cur else 0)
+                            if cur and cur_w + add > usable:
+                                lines.append(cur); cur, cur_w = [idx], ww
+                            else:
+                                cur.append(idx); cur_w += add
+                        if cur: lines.append(cur)
+                        line_w = [sum(len(chunk[k]['text']) for k in ln) * cw + (len(ln) - 1) * cw for ln in lines]
+                        nlines = len(lines)
+                        line_h = fs * 1.2
+                        pad_x, pad_y = round(fs * 0.35), round(fs * 0.16)
+                        box_w = round(max(line_w) + 2 * pad_x)
+                        box_h = round(nlines * line_h + 2 * pad_y)
+                        pos_y = 1920 - mv
+                        left = round(540 - box_w / 2)
+                        top = round(pos_y + pad_y - box_h)
+                        bgr, alpha = outline_ass[2:8], outline_ass[0:2]
+                        rect = f"m 0 0 l {box_w} 0 l {box_w} {box_h} l 0 {box_h}"
+                        # Livello box (rettangolo pieno semi-trasparente), stile Txt = no box di stile.
+                        f.write(f"Dialogue: {start},{end},Txt,{{\\an7\\pos({left},{top})\\1c&H{bgr}&\\1a&H{alpha}&\\bord0\\shad0\\p1}}{rect}{{\\p0}}\n")
+                        # Livello testo karaoke sopra, righe = \N, niente auto-wrap (\q2),
+                        # ripristino colore esplicito (non \r, per non perdere \q2).
+                        hl_close = f"{{\\c&H00{text_ass}&}}"
+                        out_lines = []
+                        for ln in lines:
+                            toks = []
+                            for k in ln:
+                                t = chunk[k]['text'].replace('{', '\\{').replace('}', '\\}')
+                                toks.append(f"{hl_open}{t}{hl_close}" if k == i else t)
+                            out_lines.append(' '.join(toks))
+                        body = '\\N'.join(out_lines)
+                        f.write(f"Dialogue: {start},{end},Txt,{{\\an2\\pos(540,{pos_y})\\q2}}{body}\n")
                     else:
                         f.write(f"Dialogue: {start},{end},Default,{' '.join(parts)}\n")
 

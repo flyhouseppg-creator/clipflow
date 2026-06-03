@@ -342,12 +342,17 @@ def generate_ass_file(words, output_path, is_portrait, font: str = "Arial", high
                             parts.append(text)
                     start, end = format_ass_time(aw['start']), format_ass_time(aw['end'])
                     if is_box:
+                        # \pos identico sui due livelli: li ancora alla stessa posizione
+                        # assoluta esentandoli dal collision detection di libass (che
+                        # altrimenti li separa). 540 = centro X (PlayResX 1080); 1920-mv
+                        # = stesso punto in basso definito dal MarginV scelto, con \an2.
+                        box_pos = f"{{\\an2\\pos(540,{1920 - mv})}}"
                         # Livello box continuo: frase intera come SINGOLO run (nessun
                         # cambio colore -> un solo box), testo reso invisibile (\1a&HFF&).
                         plain = ' '.join(w['text'].replace('{', '\\{').replace('}', '\\}') for w in chunk)
-                        f.write(f"Dialogue: {start},{end},Default,{{\\1a&HFF&}}{plain}\n")
-                        # Livello testo karaoke sopra, senza box (stile Txt). Stesso timing.
-                        f.write(f"Dialogue: {start},{end},Txt,{' '.join(parts)}\n")
+                        f.write(f"Dialogue: {start},{end},Default,{box_pos}{{\\1a&HFF&}}{plain}\n")
+                        # Livello testo karaoke sopra, senza box (stile Txt). Stesso timing e \pos.
+                        f.write(f"Dialogue: {start},{end},Txt,{box_pos}{' '.join(parts)}\n")
                     else:
                         f.write(f"Dialogue: {start},{end},Default,{' '.join(parts)}\n")
 

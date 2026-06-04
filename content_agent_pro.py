@@ -506,19 +506,7 @@ def run_job(job_id, video_path, audio_path, video_filename, user_prompt, selecte
         words = None
         if WHISPER_OK and has_audio_stream(video_path):
             update(20, "🎤 Trascrizione..."); raw = transcribe_words(video_path)
-            if raw:
-                # === DIAGNOSTICA TEMPORANEA: coda muta finale (silenzio non tagliato) ===
-                _dur = video_info["duration"]
-                _last_word_end = raw[-1]["end"]
-                _last_keep = keep_segments[-1]
-                logger.info(
-                    f"🩺 [coda muta] durata_video={_dur:.2f}s | ultima_parola_fine={_last_word_end:.2f}s | "
-                    f"ultimo_keep_segment=[{_last_keep['start']:.2f}, {_last_keep['end']:.2f}] | "
-                    f"coda_keep_dopo_ultima_parola={_last_keep['end'] - _last_word_end:.2f}s | "
-                    f"coda_video_dopo_ultima_parola={_dur - _last_word_end:.2f}s"
-                )
-                # === FINE DIAGNOSTICA TEMPORANEA ===
-                update(25, "⏱️ Sync..."); words = adjust_words_for_cuts(raw, keep_segments, 180); update(35, "✅ Sottotitoli")
+            if raw: update(25, "⏱️ Sync..."); words = adjust_words_for_cuts(raw, keep_segments, 180); update(35, "✅ Sottotitoli")
             else: update(35, "⚠️ Nessun audio")
         else: update(35, "⚠️ Video muto")
         
@@ -645,13 +633,14 @@ input[type=file]{display:none}
 .plat:has(input:checked) .plat-name,.plat.selected .plat-name{color:var(--text);font-weight:500}
 .plat:has(input:checked):after,.plat.selected:after{content:'';position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
 .quality{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.qual{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:16px 8px;border-radius:var(--r);background:var(--surface-2);border:1.5px solid var(--border);cursor:pointer;transition:.18s;user-select:none}
+.qual{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:18px 8px 16px;border-radius:var(--r);background:linear-gradient(165deg,#1b1810,#121009);border:1.5px solid rgba(240,180,41,.30);cursor:pointer;transition:.18s;user-select:none;overflow:hidden}
+.qual:before{content:'';position:absolute;inset:0;background:radial-gradient(120% 80% at 50% 0%,rgba(240,180,41,.12),transparent 70%);pointer-events:none}
 .qual input{position:absolute;opacity:0;pointer-events:none}
-.qual-res{font-size:18px;font-weight:700;color:var(--text);letter-spacing:.01em}
-.qual-sub{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
-.qual:has(input:checked),.qual.selected{border-color:var(--accent);background:var(--accent-soft);box-shadow:0 0 0 1px var(--accent) inset,0 10px 26px -12px var(--accent)}
-.qual:has(input:checked):after,.qual.selected:after{content:'';position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent)}
-.pro-tag{margin-top:4px;display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;letter-spacing:.06em;color:#0B0E14;background:linear-gradient(135deg,#FFD46B,#F0A52E);padding:2px 7px;border-radius:var(--r-pill);box-shadow:0 2px 8px -2px rgba(240,165,46,.6)}
+.qual-res{position:relative;font-size:24px;font-weight:800;line-height:1;letter-spacing:.01em;background:linear-gradient(135deg,#FFE7A6,#F4C233 55%,#E0A21B);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.qual-sub{position:relative;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#E9B949;padding:2px 8px;border:1px solid rgba(240,180,41,.4);border-radius:var(--r-pill);background:rgba(240,180,41,.06)}
+.qual:has(input:checked),.qual.selected{border-color:#F0B429;background:linear-gradient(165deg,#241f12,#1a160c);box-shadow:0 0 0 1px #F0B429 inset,0 12px 28px -12px rgba(240,180,41,.7)}
+.qual:has(input:checked):after,.qual.selected:after{content:'';position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:#F4C233;box-shadow:0 0 8px #F0B429}
+.pro-tag{position:relative;margin-top:1px;display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:800;letter-spacing:.08em;color:#2a1d02;background:linear-gradient(135deg,#FFE08A,#F0A52E);padding:2px 7px;border-radius:var(--r-pill);box-shadow:0 2px 8px -2px rgba(240,165,46,.6)}
 .options{display:flex;flex-direction:column;gap:2px}
 .toggle{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 2px;cursor:pointer}
 .toggle+.toggle{border-top:1px solid var(--border)}

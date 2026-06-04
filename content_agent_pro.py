@@ -50,9 +50,9 @@ def _run_ffmpeg_safe(cmd: list, timeout: int = 300) -> bool:
         return False
 
 PLATFORMS = {
-    "tiktok":    {"w": 1080, "h": 1920, "max_sec": 60,  "fps": 30, "label": "TikTok",               "icon": "🎵"},
-    "instagram": {"w": 1080, "h": 1920, "max_sec": 60,  "fps": 30, "label": "Instagram Reels",      "icon": "📸"},
-    "youtube":   {"w": 1080, "h": 1920, "max_sec": 60,  "fps": 30, "label": "YouTube Shorts",       "icon": "▶️"},
+    "tiktok":    {"w": 1080, "h": 1920, "max_sec": 180, "fps": 30, "label": "TikTok",               "icon": "🎵"},
+    "instagram": {"w": 1080, "h": 1920, "max_sec": 180, "fps": 30, "label": "Instagram Reels",      "icon": "📸"},
+    "youtube":   {"w": 1080, "h": 1920, "max_sec": 180, "fps": 30, "label": "YouTube Shorts",       "icon": "▶️"},
     "twitter":   {"w": 1080, "h": 1080, "max_sec": 140, "fps": 30, "label": "Twitter/X",            "icon": "🐦"},
     "linkedin":  {"w": 1920, "h": 1080, "max_sec": 180, "fps": 30, "label": "LinkedIn",             "icon": "💼"},
     "youtube_long": {"w": 1920, "h": 1080, "max_sec": 180, "fps": 30, "label": "YouTube Video (3 min)", "icon": "🎥"},
